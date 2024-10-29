@@ -20,13 +20,13 @@ from tools import setcubeplacement
 def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     '''Return a collision free configuration grasping a cube at a specific location and a success flag'''
     setcubeplacement(robot, cube, cubetarget)
-    #TODO implement
-    #print ("TODO: implement me")
-    #Plan: Use BFGS to find solution
+    #Use BFGS to find solution
 
+    # Basic callback function for BFGS optimiser
     def callback(q):
         time.sleep(.5)
 
+    # Cost function for BFGS, minimising the distance between the effectors and cube hooks
     def cost(q):
         pin.framesForwardKinematics(robot.model,robot.data,q)
         pin.computeJointJacobians(robot.model,robot.data,q)
@@ -54,10 +54,10 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
 
         return norm(effL_XYZQUAT - cubeL_XYZQUAT) ** 2 + norm(effR_XYZQUAT - cubeR_XYZQUAT) ** 2
 
-    print(cost(qcurrent))
     qopt_bfgs = fmin_bfgs(cost, qcurrent, callback=callback)
     robot.q0 = qopt_bfgs
-    return robot.q0, True
+    
+    return robot.q0, (cost(qopt_bfgs) < EPSILON)
             
 if __name__ == "__main__":
     from tools import setupwithmeshcat
