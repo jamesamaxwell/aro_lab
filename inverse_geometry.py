@@ -28,9 +28,6 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         time.sleep(.5)
 
     def cost(q):
-        if collision(robot, q):
-            return 10000
-        
         pin.framesForwardKinematics(robot.model,robot.data,q)
         pin.computeJointJacobians(robot.model,robot.data,q)
 
@@ -51,6 +48,9 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
     
         effR_XYZQUAT = pin.SE3ToXYZQUAT(oMframeR)
         cubeR_XYZQUAT = pin.SE3ToXYZQUAT(oMcubeR)
+
+        if collision(robot, q):
+            return 10000 + norm(effL_XYZQUAT - cubeL_XYZQUAT) ** 2 + norm(effR_XYZQUAT - cubeR_XYZQUAT) ** 2
 
         return norm(effL_XYZQUAT - cubeL_XYZQUAT) ** 2 + norm(effR_XYZQUAT - cubeR_XYZQUAT) ** 2
 
