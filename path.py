@@ -17,35 +17,51 @@ import time
 from tools import collision, setcubeplacement, getcubeplacement, setupwithmeshcat, jointlimitsviolated
 import math
 from collections import deque
+from pinocchio.utils import rotate
 
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
 def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
     # Performs linear interpolation while ensuring valid configurations with grasp poses
-    def edge_valid(se3_0, se3_1, steps=1000):
+    def edge_valid(se3_0, se3_1, steps=10):
         # Initialise list of configurations
         q_list = []
         q_new, found_grasp = computeqgrasppose(robot, robot.q0, cube, se3_0) # Will succeed, not optimal as this has already been calculated
+        #print(se3_0)
         q_list.append(q_new)
+        step_size = (se3_1.translation - se3_0.translation) * (1 / steps)
 
         # Linear interpolation checking for grasp pose
         for i in range(1, steps):
-            se3_new = (1 - (i / steps)) * se3_0 + (i / steps) * se3_1
-            q_new, found_grasp = computeqgrasppose(robot, robot.q0, cube, se3_new)
+            se3_translation = se3_0.translation + step_size
+            se3_new = pin.SE3(rotate('z', 0), se3_translation)
+            #se3_new.rotation = (1 - (i / steps)) * se3_0.rotation + (i / steps) * se3_1.rotation
+            #se3_new.translation = se3_0.translation + (i / steps) * se3_1.translation
+            #print(se3_new)
+            q_new, found_grasp = computeqgrasppose(robot, q_list[i-1], cube, se3_new)
             if not found_grasp:
                 return q_list, False
             q_list.append(q_new)
 
-
         return q_list, True
     
-    def generateQRand(cube_placement):
-        return pin.SE3.Random()
+    def generateQRand(cube_placement, magnitude=0.1):
+        # Generate a random unit vector in 15 dimensions and scale it by magnitude
+        random_direction = np.random.rand(3)
 
-    k = 10000
-    se3vertices = [cubeplacementq0, cubeplacementqgoal]
+        # Set Translation
+        random_direction /= np.linalg.norm(random_direction)  # Normalize to unit length
+        perturbation = random_direction * magnitude
+        random_direction = cube_placement.translation + perturbation
+
+        se3_new = pin.SE3(rotate('z', 0), random_direction)
+
+        return se3_new
+
+    k = 100
+    se3vertices = [cubeplacementq0]
     se3edges = []
-    qvertices = [qinit, qgoal]
+    qvertices = [qinit]
     qedges = []
     # init_vertices = [cubeplacementq0]
     # goal_vertices = [cubeplacementqgoal]
@@ -70,45 +86,55 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
                         min_dist = dist
                         nearest_neighbour = j
                 
-                print(nearest_neighbour)
                 q_list, valid = edge_valid(se3vertices[nearest_neighbour], se3_rand)
                 if valid:
                     qvertices.append(q_rand)
-                    qedges.append(qvertices[nearest_neighbour], q_list, q_rand)
+                    qedges.append([qvertices[nearest_neighbour], q_list, q_rand])
                     se3vertices.append(se3_rand)
-                    se3edges.append(se3vertices[nearest_neighbour], se3_rand)
+                    se3edges.append([se3vertices[nearest_neighbour], se3_rand])
+                    
+                    # Check if goal edge is possible
+                    q_list, valid = edge_valid(se3_rand, cubeplacementqgoal)
+                    if valid:
+                        print("Successfully found goal!!!")
+                        qedges.append([q_rand, q_list, qgoal])
+                        se3edges.append([se3_rand, cubeplacementqgoal])
 
     # Path find through the graph; BFS
-    queue = [].append(qinit)
-    explored = [].append(qinit)
+    print(len(qvertices))
+    queue = [qinit]
+    print(queue)
+    explored = []
     goal = qgoal
-    parent_list = []*len(qedges)
-
+    parent_list = [None] * len(qvertices)
+    
     while queue:
+        print("queued")
         v = queue.pop(0)
         if v == goal:
             break
         for edge in qedges:
             if v in edge:
-                if edge not in explored:
-                    if v == edge[0]:
-                        explored.extend(edge[1])
-                        parent_list[qedges.index(edge(1))] = v
-                        queue.extend(edge(1))
-                    else:
-                        explored.extend(edge[0])
-                        parent_list[qedges.index(edge(0))] = v
-                        queue.extend(edge(0))
+                # Determine the adjacent vertex
+                adjacent = edge[1] if v == edge[0] else edge[0]
+                if adjacent not in explored:
+                    # Mark the adjacent vertex as explored
+                    explored.append(adjacent)
+                    # Track the parent of the adjacent vertex
+                    parent_list[qvertices.index(adjacent)] = v
+                    # Add the adjacent vertex to the queue for further exploration
+                    queue.append(adjacent)
 
     # Reverse the BFS from goal
-    inverted_path = [].extend(qgoal)
-    edge = parent_list[1]
-    inverted_path.extend(parent_list[1])
+    print(parent_list)
+    inverted_path = [qgoal]
+    vertice = parent_list[1]
+    inverted_path.append(parent_list[1])
     
-    while edge != qinit:
-        next_edge = parent_list[parent_list.index(edge)]
-        inverted_path.extend(parent_list[parent_list.index(edge)])
-        edge = next_edge
+    while vertice != goal:
+        next_vertice = parent_list[parent_list.index(vertice)]
+        inverted_path.append(parent_list[parent_list.index(vertice)])
+        edge = next_vertice
 
     # Invert the path
     path = []*len(inverted_path)
