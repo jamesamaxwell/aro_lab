@@ -58,7 +58,7 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
 
         return se3_new
 
-    k = 100
+    k = 100     # Increase k for higher chance of find path if it exists; Will increase run time
     se3vertices = [cubeplacementq0]
     se3edges = []
     qvertices = [qinit]
@@ -102,28 +102,36 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
 
     # Path find through the graph; BFS
     print(len(qvertices))
-    queue = [qinit]
+    queue = [0]
     print(queue)
     explored = []
     goal = qgoal
-    parent_list = [None] * len(qvertices)
+    parent_list = [None] * len(qvertices)   # Stores parent's index position for the current index position in vertices
     
     while queue:
         print("queued")
         v = queue.pop(0)
-        if v == goal:
+        if (qvertices[v] == goal).all():
             break
-        for edge in qedges:
-            if v in edge:
+        for qedge in qedges:
+            if (qvertices[v] == qedge[0]).all() | (qvertices[v] == qedge[2]).all():
                 # Determine the adjacent vertex
-                adjacent = edge[1] if v == edge[0] else edge[0]
-                if adjacent not in explored:
+                adjacent = qedge[2] if (qvertices[v] == qedge[0]).all() else qedge[0]
+                
+                in_explored = False
+                for explored_qvertice in explored:
+                    if (adjacent == explored_qvertice).all():
+                        in_explored = True
+                
+                if not in_explored:
                     # Mark the adjacent vertex as explored
                     explored.append(adjacent)
-                    # Track the parent of the adjacent vertex
-                    parent_list[qvertices.index(adjacent)] = v
                     # Add the adjacent vertex to the queue for further exploration
-                    queue.append(adjacent)
+                    # Track the parent of the adjacent vertex
+                    for qvertice_index in range(0, len(qvertices)):
+                        if (qvertices[qvertice_index] == adjacent).all():
+                            parent_list[qvertice_index] = v
+                            queue.append(qvertice_index)
 
     # Reverse the BFS from goal
     print(parent_list)

@@ -24,7 +24,8 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
 
     # Basic callback function for BFGS optimiser
     def callback(q):
-        time.sleep(.5)
+        # time.sleep(.5)
+        pass
 
     # Cost function for BFGS, minimising the distance between the effectors and cube hooks
     def cost(q):
