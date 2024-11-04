@@ -22,134 +22,113 @@ from pinocchio.utils import rotate
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
 def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
-    # Performs linear interpolation while ensuring valid configurations with grasp poses
-    def edge_valid(se3_0, se3_1, steps=10):
-        # Initialise list of configurations
+    def edge_valid(point0, point1, steps=100):
+        q_step = (point1[0] - point0[0]) / steps
+        res = True
+        # es = ""
+        # print("Goal edge valid:")
         q_list = []
-        q_new, found_grasp = computeqgrasppose(robot, robot.q0, cube, se3_0) # Will succeed, not optimal as this has already been calculated
-        #print(se3_0)
-        q_list.append(q_new)
-        step_size = (se3_1.translation - se3_0.translation) * (1 / steps)
-
-        # Linear interpolation checking for grasp pose
         for i in range(1, steps):
-            se3_translation = se3_0.translation + step_size
-            se3_new = pin.SE3(rotate('z', 0), se3_translation)
-            #se3_new.rotation = (1 - (i / steps)) * se3_0.rotation + (i / steps) * se3_1.rotation
-            #se3_new.translation = se3_0.translation + (i / steps) * se3_1.translation
-            #print(se3_new)
-            q_new, found_grasp = computeqgrasppose(robot, q_list[i-1], cube, se3_new)
-            if not found_grasp:
-                return q_list, False
-            q_list.append(q_new)
+            if collision(robot, q0 + i * q_step):
+                # es += "1"
+                res = False
+                q_list = []
+                break
+            else:
+                # es += "0"
+                q_list.append(q0 + i * q_step)
+        # print(res)
+        # print(es)
 
-        return q_list, True
+        return q_list, res
     
-    def generateQRand(cube_placement, magnitude=0.1):
-        # Generate a random unit vector in 15 dimensions and scale it by magnitude
-        random_direction = np.random.rand(3)
+    def generateQRand(vertex, magnitude=0.1):
+        valid_direction = False
 
-        # Set Translation
-        random_direction /= np.linalg.norm(random_direction)  # Normalize to unit length
-        perturbation = random_direction * magnitude
-        random_direction = cube_placement.translation + perturbation
+        while not valid_direction:
+            q, cube_placement = vertex
+            random_direction = np.random.rand(3)
+            random_direction /= np.linalg.norm(random_direction)
+            perturbation = random_direction * magnitude
+            random_direction = cube_placement.translation + perturbation
+
+            #print("Random Direction", random_direction)
+            valid_direction = random_direction[0] > 0 and random_direction[0] < 0.5 and random_direction[1] > -0.5 and random_direction[1] < 0.5 and random_direction[2] > 0.9 and random_direction[2] < 1.9
+            #print(valid_direction)
 
         se3_new = pin.SE3(rotate('z', 0), random_direction)
+        q_new, found_grasp = computeqgrasppose(robot, q, cube, se3_new)
 
-        return se3_new
+        # x = np.random.rand() / 2
+        # y = np.random.rand() - 0.5
+        # z = np.random.rand() + 0.9
+        # random_direction = np.array([x, y, z])
+        # se3_new = pin.SE3(rotate('z', 0), random_direction)
+        # q_new, found_grasp = computeqgrasppose(robot, q, cube, se3_new)
 
-    k = 100     # Increase k for higher chance of find path if it exists; Will increase run time
-    se3vertices = [cubeplacementq0]
-    se3edges = []
-    qvertices = [qinit]
-    qedges = []
-    # init_vertices = [cubeplacementq0]
-    # goal_vertices = [cubeplacementqgoal]
+        return (q_new, se3_new), found_grasp 
+    
+    k = 100000
+    vertices = [(qinit, cubeplacementq0)]
+    edges = []
+    path_edges = []
 
-    # init_edges = []
-    # goal_edges = []
-
-
-    # Build RRT; if connection is possible, it will be generated with large enough k
     for i in range(k):
-        rand_choice = np.random.randint(len(se3vertices))
-        se3_rand = generateQRand(se3vertices[rand_choice])
-        q_rand, b = computeqgrasppose(robot, qvertices[rand_choice], cube, se3_rand)
-        if not collision(robot, q_rand):
-            if not jointlimitsviolated(robot, q_rand):
-                # Nearest Neighbour
-                min_dist = np.linalg.norm(qvertices[0] - q_rand)
-                nearest_neighbour = 0
-                for j in range(0, len(qvertices)):
-                    dist = np.linalg.norm(qvertices[j] - q_rand)
-                    if dist < min_dist:
-                        min_dist = dist
-                        nearest_neighbour = j
-                
-                q_list, valid = edge_valid(se3vertices[nearest_neighbour], se3_rand)
-                if valid:
-                    qvertices.append(q_rand)
-                    qedges.append([qvertices[nearest_neighbour], q_list, q_rand])
-                    se3vertices.append(se3_rand)
-                    se3edges.append([se3vertices[nearest_neighbour], se3_rand])
-                    
-                    # Check if goal edge is possible
-                    q_list, valid = edge_valid(se3_rand, cubeplacementqgoal)
-                    if valid:
-                        print("Successfully found goal!!!")
-                        qedges.append([q_rand, q_list, qgoal])
-                        se3edges.append([se3_rand, cubeplacementqgoal])
+        if i % 10 == 0:
+            print("Iteration number:")
+            print(i)
+            print("Vertices:")
+            print(len(vertices))
+        qnear = vertices[np.random.randint(len(vertices))]
+        qrand, found_grasp = generateQRand(qnear)
+        while not found_grasp or collision(robot, qrand[0]):
+            qrand, found_grasp = generateQRand(vertices[np.random.randint(len(vertices))])
 
-    # Path find through the graph; BFS
-    print(len(qvertices))
-    queue = [0]
-    print(queue)
-    explored = []
-    goal = qgoal
-    parent_list = [None] * len(qvertices)   # Stores parent's index position for the current index position in vertices
+        viz.display(qrand[0])
+        time.sleep(0.3)
+        
+        qlist, e_v = edge_valid(qnear, qrand)
+        if e_v:
+            vertices.append(qrand)
+            edges.append((qnear, qrand, qlist))
+            qlist, e_v = edge_valid(qrand, (qgoal, cubeplacementqgoal))
+            
+            print(found_grasp)
+            # goal_edge_valid(qrand[0], qgoal)
+            if e_v:
+                print("Connected")
+                edges.append((qrand, (qgoal, cubeplacementqgoal), qlist))
+                break
+        if i == k - 1:
+            print("Failed to reach goal")
+            return []
     
-    while queue:
-        print("queued")
-        v = queue.pop(0)
-        if (qvertices[v] == goal).all():
-            break
-        for qedge in qedges:
-            if (qvertices[v] == qedge[0]).all() | (qvertices[v] == qedge[2]).all():
-                # Determine the adjacent vertex
-                adjacent = qedge[2] if (qvertices[v] == qedge[0]).all() else qedge[0]
-                
-                in_explored = False
-                for explored_qvertice in explored:
-                    if (adjacent == explored_qvertice).all():
-                        in_explored = True
-                
-                if not in_explored:
-                    # Mark the adjacent vertex as explored
-                    explored.append(adjacent)
-                    # Add the adjacent vertex to the queue for further exploration
-                    # Track the parent of the adjacent vertex
-                    for qvertice_index in range(0, len(qvertices)):
-                        if (qvertices[qvertice_index] == adjacent).all():
-                            parent_list[qvertice_index] = v
-                            queue.append(qvertice_index)
+    print("Start Traceback")
+    # Trace back from goal to start to find path edges
+    current = (qgoal, cubeplacementqgoal)
+    n = 0
+    print(current[0])
+    print(qinit)
+    while list(current[0]) != list(qinit):
+        print(current[0])
+        print(qinit)
+        n += 1
+        if n % 20 == 0:
+            print("Traceback iteration", n)
+        for edge in edges:
+            if list(edge[1][0]) == list(current[0]):
+                print(n, "Edge found")
+                path_edges.insert(0, edge[2])  # Prepend the qlist for each edge in the path
+                current = edge[0]
+                break
+        else:
+            print("Path not found")
+            return []
 
-    # Reverse the BFS from goal
-    print(parent_list)
-    inverted_path = [qgoal]
-    vertice = parent_list[1]
-    inverted_path.append(parent_list[1])
-    
-    while vertice != goal:
-        next_vertice = parent_list[parent_list.index(vertice)]
-        inverted_path.append(parent_list[parent_list.index(vertice)])
-        edge = next_vertice
-
-    # Invert the path
-    path = []*len(inverted_path)
-
-    for i in range(len(inverted_path), 0):
-        path[len(inverted_path) - i] = inverted_path[i]
-
+    # Flatten the list of qlists along the path
+    path = [q for qlist in path_edges for q in qlist]
+    print("Path:", len(path))
+    print(path)
     return path
 
 
