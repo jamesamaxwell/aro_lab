@@ -11,7 +11,7 @@ import numpy as np
 import time
 from numpy.linalg import pinv,inv,norm,svd,eig
 from scipy.optimize import fmin_bfgs
-from tools import collision, getcubeplacement, setcubeplacement, projecttojointlimits
+from tools import collision, getcubeplacement, setcubeplacement, projecttojointlimits, jointlimitscost, distanceToObstacle
 from config import LEFT_HOOK, RIGHT_HOOK, LEFT_HAND, RIGHT_HAND, EPSILON
 from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
 
@@ -50,15 +50,40 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
         effR_XYZQUAT = pin.SE3ToXYZQUAT(oMframeR)
         cubeR_XYZQUAT = pin.SE3ToXYZQUAT(oMcubeR)
 
-        if collision(robot, q):
-            return 10000 + norm(effL_XYZQUAT - cubeL_XYZQUAT) ** 2 + norm(effR_XYZQUAT - cubeR_XYZQUAT) ** 2
-
         return norm(effL_XYZQUAT - cubeL_XYZQUAT) ** 2 + norm(effR_XYZQUAT - cubeR_XYZQUAT) ** 2
+    
+    def constraint(q):
+        # Constraint 1: Robot doesn't violate joint constraints
+        jointcost = jointlimitscost(robot, q)   # Minimise joint cost
 
-    qopt_bfgs = fmin_bfgs(cost, qcurrent, callback=callback)
+        # Ignore: Constraint 2 can be dealt with else where
+        # Constraint 2: Robot isn't in collision with any objects
+        #repulsive_component = collision_constraint(q)
+
+        constraints = np.array([jointcost])
+        return constraints
+    
+    def collision_constraint(q):
+        collision_distance = distanceToObstacle(robot, q)   # p(x)
+        max_influence_distance = 0.01 # p0(x)
+
+        # Constraint Calculation
+        n = 1
+        if collision_distance <= max_influence_distance:
+            Ur = 1/2 * n * np.square((1 / collision_distance) - (1 / max_influence_distance))
+        else:
+            Ur = 0
+
+        return Ur
+
+
+    def penalty(q):
+        return cost(q) + 10 * sum(np.square(constraint(q)))
+
+    qopt_bfgs = fmin_bfgs(penalty, qcurrent, callback=callback, disp=0)
     robot.q0 = qopt_bfgs
     
-    return robot.q0, (cost(qopt_bfgs) < EPSILON)
+    return robot.q0, not((cost(qopt_bfgs) < EPSILON) & collision(robot, qopt_bfgs))
             
 if __name__ == "__main__":
     from tools import setupwithmeshcat
@@ -70,7 +95,7 @@ if __name__ == "__main__":
     q0,successinit = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT, viz)
     qe,successend = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT_TARGET,  viz)
     
-    updatevisuals(viz, robot, cube, qe)
+    updatevisuals(viz, robot, cube, q0)
     
     
     

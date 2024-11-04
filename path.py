@@ -22,25 +22,28 @@ from pinocchio.utils import rotate
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
 def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
-    def edge_valid(point0, point1, steps=100):
-        q_step = (point1[0] - point0[0]) / steps
-        res = True
-        # es = ""
-        # print("Goal edge valid:")
-        q_list = []
-        for i in range(1, steps):
-            if collision(robot, q0 + i * q_step):
-                # es += "1"
-                res = False
-                q_list = []
-                break
-            else:
-                # es += "0"
-                q_list.append(q0 + i * q_step)
-        # print(res)
-        # print(es)
+    def edge_valid(se3_0, se3_1, steps=100):
+       # Initialize list of configurations
+       q_list = []
+       q_new, found_grasp = computeqgrasppose(robot, robot.q0, cube, se3_0)
+       q_list.append(q_new)
+       step_size = (se3_1.translation - se3_0.translation) * (1 / steps)
 
-        return q_list, res
+       # Linear interpolation checking for grasp pose
+       for i in range(1, steps):
+           se3_translation = se3_0.translation + i * step_size
+           se3_new = pin.SE3(rotate('z', 0), se3_translation)
+           q_new, found_grasp = computeqgrasppose(robot, q_list[i-1], cube, se3_new)
+        #    print("Interpolation step", i)
+        #    print(se3_new.translation)
+           if collision(robot, q_new):
+               # print("------------------collision-----------------")
+               return [], False
+           if not found_grasp:
+               return q_list, False
+           q_list.append(q_new)
+
+       return q_list, True
     
     def generateQRand(vertex, magnitude=0.1):
         valid_direction = False
@@ -53,7 +56,7 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
             random_direction = cube_placement.translation + perturbation
 
             #print("Random Direction", random_direction)
-            valid_direction = random_direction[0] > 0 and random_direction[0] < 0.5 and random_direction[1] > -0.5 and random_direction[1] < 0.5 and random_direction[2] > 0.9 and random_direction[2] < 1.9
+            valid_direction = random_direction[0] > 0 and random_direction[0] < 0.5 and random_direction[1] > -1 and random_direction[1] < 1 and random_direction[2] > 0.9 and random_direction[2] < 5.9
             #print(valid_direction)
 
         se3_new = pin.SE3(rotate('z', 0), random_direction)
@@ -84,14 +87,14 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
         while not found_grasp or collision(robot, qrand[0]):
             qrand, found_grasp = generateQRand(vertices[np.random.randint(len(vertices))])
 
-        viz.display(qrand[0])
-        time.sleep(0.3)
+        # viz.display(qrand[0])
+        # time.sleep(0.3)
         
-        qlist, e_v = edge_valid(qnear, qrand)
+        qlist, e_v = edge_valid(qnear[1], qrand[1])
         if e_v:
             vertices.append(qrand)
             edges.append((qnear, qrand, qlist))
-            qlist, e_v = edge_valid(qrand, (qgoal, cubeplacementqgoal))
+            qlist, e_v = edge_valid(qrand[1], cubeplacementqgoal)
             
             print(found_grasp)
             # goal_edge_valid(qrand[0], qgoal)
@@ -128,6 +131,7 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
     # Flatten the list of qlists along the path
     path = [q for qlist in path_edges for q in qlist]
     print("Path:", len(path))
+    path.append(qgoal)
     print(path)
     return path
 
@@ -325,5 +329,5 @@ if __name__ == "__main__":
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET)
     
-    displaypath(robot,path,dt=0.001,viz=viz) #you ll probably want to lower dt
+    displaypath(robot,path,dt=0.01,viz=viz) #you ll probably want to lower dt
     
