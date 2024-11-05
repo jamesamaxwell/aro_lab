@@ -22,6 +22,8 @@ from pinocchio.utils import rotate
 #returns a collision free path from qinit to qgoal under grasping constraints
 #the path is expressed as a list of configurations
 def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
+    from inverse_geometry import computeqgrasppose
+    robot, cube, viz = setupwithmeshcat()
     def edge_valid(se3_0, se3_1, steps=100):
        # Initialize list of configurations
        q_list = []
@@ -96,7 +98,7 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
             edges.append((qnear, qrand, qlist))
             qlist, e_v = edge_valid(qrand[1], cubeplacementqgoal)
             
-            print(found_grasp)
+            # print(found_grasp)
             # goal_edge_valid(qrand[0], qgoal)
             if e_v:
                 print("Connected")
@@ -178,15 +180,27 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
 #                 adjacency_list.setdefault(tuple(qnear), []).append(tuple(qrand))
 #                 adjacency_list.setdefault(tuple(qrand), []).append(tuple(qnear))
                 
-#                 # Check if we can connect to qtarget (other tree)
-#                 if edge_valid(qrand, qtarget):
-#                     print("Connected!")
-#                     return qrand, True  # Return the connection point
-#         return qrand, False
-
-#     start_tree_size = 1
-#     goal_tree_size = 1
-#     for i in range(k):
+# #                 # Check if we ca
+# if __name__ == "__main__":
+#     from tools import setupwithmeshcat
+#     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
+#     from inverse_geometry import computeqgrasppose
+    
+#     robot, cube, viz = setupwithmeshcat()
+    
+    
+#     q = robot.q0.copy()
+#     q0,successinit = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT, viz)
+#     qe,successend = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT_TARGET,  viz)
+#     #print(check_grasp_position(q0, cube))
+    
+#     if not(successinit and successend):
+#         print ("error: invalid initial or end configuration")
+    
+#     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET)
+    
+#     displaypath(robot,path,dt=0.01,viz=viz) #you ll probably want to lower dt
+    
 #         # if i % 1000 == 0:
 #         #     print(i)
 #         # Grow the start tree toward a configuration modified by random vector
@@ -304,6 +318,32 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
 #     print(es)
 #     return res
 
+def save_arrays_to_python_file(file_path, array_list):
+    """
+    Saves a list of numpy arrays to a Python file, making it importable.
+
+    Parameters:
+    file_path (str): Path where the .py file will be saved.
+    array_list (list): List of numpy arrays to be saved.
+    """
+    with open(file_path, 'w') as file:
+        # Write imports to file
+        file.write("import numpy as np\n\n")
+        
+        # Write arrays to file
+        for i, arr in enumerate(array_list):
+            file.write(f"array_{i} = np.array({arr.tolist()})\n")
+        
+        # Optionally, save the entire list as a collection
+        file.write("\narrays = [")
+        for i in range(len(array_list)):
+            file.write(f"array_{i}")
+            if i < len(array_list) - 1:
+                file.write(", ")
+        file.write("]\n")
+
+        file.write("def get_path():\n\treturn arrays")
+
 
 def displaypath(robot,path,dt,viz):
     for q in path:
@@ -315,11 +355,13 @@ if __name__ == "__main__":
     from tools import setupwithmeshcat
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
     from inverse_geometry import computeqgrasppose
+
+    from path_example import get_path
     
     robot, cube, viz = setupwithmeshcat()
     
-    
     q = robot.q0.copy()
+
     q0,successinit = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT, viz)
     qe,successend = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT_TARGET,  viz)
     #print(check_grasp_position(q0, cube))
@@ -328,6 +370,10 @@ if __name__ == "__main__":
         print ("error: invalid initial or end configuration")
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET)
+
+    # path = get_path()
+
+    save_arrays_to_python_file('path_example.py', path)
     
     displaypath(robot,path,dt=0.01,viz=viz) #you ll probably want to lower dt
     
