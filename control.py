@@ -18,7 +18,27 @@ def controllaw(sim, robot, trajs, tcurrent, cube):
     q, vq = sim.getpybulletstate()
     #TODO 
     torques = [0.0 for _ in sim.bulletCtrlJointsInPinOrder]
-    sim.step(torques)
+    
+    # Given trajs (position, velocity and acceleration)
+    # determine the required torque to move the robot
+
+    q_of_t, vq_of_t, vvq_of_t = trajs
+
+    q_target = q_of_t.eval_horner(tcurrent)
+    v_target = vq_of_t.eval_horner(tcurrent)
+
+    e = q_target - q
+    e_d = - vq
+
+    u = Kp * e + Kv * e_d
+
+
+    u = u /2.5
+    print(u)
+
+    print(torques)
+     
+    sim.step(u)
 
 if __name__ == "__main__":
         
@@ -45,7 +65,8 @@ if __name__ == "__main__":
     #In any case this trajectory does not follow the path 
     #0 init and end velocities
     def maketraj(q0,q1,T): #TODO compute a real trajectory !
-        q_of_t = Bezier([q0,q0,q1,q1],t_max=T)
+        q_of_t = Bezier(path,t_max=T)
+        #q_of_t =    # Make without bezier first
         vq_of_t = q_of_t.derivative(1)
         vvq_of_t = vq_of_t.derivative(1)
         return q_of_t, vq_of_t, vvq_of_t
