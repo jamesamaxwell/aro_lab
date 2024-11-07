@@ -8,14 +8,13 @@ Created on Wed Sep  6 15:32:51 2023
 
 import numpy as np
 import time
+import matplotlib.pyplot as plt
 
 from bezier import Bezier
     
 # in my solution these gains were good enough for all joints but you might want to tune this.
-Ki = 2500               # proportional gain (P of PD)
-Kp = 1   # derivative gain (D of PD)
-Kd = 0
-
+Kp = 2500               # proportional gain (P of PD)
+Kd = 1   # derivative gain (D of PD)
 def controllaw(sim, robot, trajs, tcurrent, cube):
     q, vq = sim.getpybulletstate()
     #TODO 
@@ -41,19 +40,18 @@ def controllaw(sim, robot, trajs, tcurrent, cube):
 
     #vvq = (vq_old - vq) / DT
 
-    e = v_target - vq
-    e_d = 0#a_target - vvq
-    e_i = q_target - q
+    e_d = v_target - vq
+    e = q_target - q
 
     grasp_torque = np.zeros(15)
-    grasp_torque[3] = -70
-    grasp_torque[9] = 70
+    grasp_torque[3] = -100
+    grasp_torque[9] = 100
 
     print("e:", e)
     print(Kp * e)
     print("Grasp torque", grasp_torque)
 
-    torques = Ki * e_i + Kp * e + Kd * e_d+ grasp_torque
+    torques = Kp * e + Kd * e_d + grasp_torque
 
     torques = torques * 1#/2.5
     print("torques:")
@@ -63,6 +61,8 @@ def controllaw(sim, robot, trajs, tcurrent, cube):
     vq_old = vq
 
     sim.step(torques)
+
+    return q, q_target#np.linalg.norm(q), np.linalg.norm(q_target) 
 
 if __name__ == "__main__":
         
@@ -108,11 +108,28 @@ if __name__ == "__main__":
     trajs = maketraj(q0, qe, total_time)   
     
     tcur = 0.
+
+    times = []
     
+    q_errs = []
+    vq_errs = []
     
     while tcur < total_time:
-        rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
+        q_err, vq_err = rununtil(controllaw, DT, sim, robot, trajs, tcur, cube)
+
+        q_errs.append(q_err)
+        vq_errs.append(vq_err)
+        times.append(tcur)
+
         tcur += DT
+
+    plt.plot(times, q_errs)
+    plt.plot(times,vq_errs)
+    #plt.plot(times, vvq_errs)
+    plt.xlabel("time (in s)")
+    plt.ylabel("error")
+
+    plt.show()   
     
     
     

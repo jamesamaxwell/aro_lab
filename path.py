@@ -14,7 +14,7 @@ from config import LEFT_HAND, RIGHT_HAND
 from config import LEFT_HOOK, RIGHT_HOOK
 import time
 
-from tools import collision, setcubeplacement, getcubeplacement, setupwithmeshcat, jointlimitsviolated
+from tools import collision, setcubeplacement, getcubeplacement, setupwithmeshcat, jointlimitsviolated, distanceToObstacle
 import math
 from collections import deque
 from pinocchio.utils import rotate
@@ -86,7 +86,7 @@ def computepath(qinit, qgoal, cubeplacementq0, cubeplacementqgoal):
             print(len(vertices))
         qnear = vertices[np.random.randint(len(vertices))]
         qrand, found_grasp = generateQRand(qnear)
-        while not found_grasp or collision(robot, qrand[0]):
+        while not found_grasp or collision(robot, qrand[0]) or (distanceToObstacle(robot, qrand[0]) < 0.005):
             qrand, found_grasp = generateQRand(vertices[np.random.randint(len(vertices))])
 
         # viz.display(qrand[0])
@@ -346,9 +346,13 @@ def save_arrays_to_python_file(file_path, array_list):
 
 
 def displaypath(robot,path,dt,viz):
+    min_dist = distanceToObstacle(robot, path[0])
     for q in path:
+        if distanceToObstacle(robot, q) < min_dist:
+            min_dist = distanceToObstacle(robot, q)
         viz.display(q)
         time.sleep(dt)
+    print(min_dist)
 
 
 if __name__ == "__main__":
@@ -356,7 +360,7 @@ if __name__ == "__main__":
     from config import CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET
     from inverse_geometry import computeqgrasppose
 
-    from path_example import get_path
+    #from path_example import get_path
     
     robot, cube, viz = setupwithmeshcat()
     
@@ -371,9 +375,9 @@ if __name__ == "__main__":
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET)
 
-    # path = get_path()
-
+    #path = get_path()
+#
     save_arrays_to_python_file('path_example.py', path)
-    
+    #
     displaypath(robot,path,dt=0.01,viz=viz) #you ll probably want to lower dt
     
