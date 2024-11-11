@@ -82,8 +82,10 @@ def computeqgrasppose(robot, qcurrent, cube, cubetarget, viz=None):
 
     qopt_bfgs = fmin_bfgs(penalty, qcurrent, callback=callback, disp=0)
     robot.q0 = qopt_bfgs
+
+    print((cost(qopt_bfgs) < EPSILON), (not collision(robot, qopt_bfgs)))
     
-    return robot.q0, not((cost(qopt_bfgs) < EPSILON) & collision(robot, qopt_bfgs))
+    return robot.q0, (cost(qopt_bfgs) < EPSILON) & (not collision(robot, qopt_bfgs))
             
 if __name__ == "__main__":
     from tools import setupwithmeshcat
@@ -91,11 +93,9 @@ if __name__ == "__main__":
     robot, cube, viz = setupwithmeshcat()
     
     q = robot.q0.copy()
-    
+
     q0,successinit = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT, viz)
     qe,successend = computeqgrasppose(robot, q, cube, CUBE_PLACEMENT_TARGET,  viz)
-    
-    updatevisuals(viz, robot, cube, q0)
-    
-    
+
+    updatevisuals(viz, robot, cube, qtest)
     
