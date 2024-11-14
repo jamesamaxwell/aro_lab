@@ -180,6 +180,6 @@ if __name__ == "__main__":
     
     path = computepath(q0,qe,CUBE_PLACEMENT, CUBE_PLACEMENT_TARGET)
     
-    displaypath(robot,path,dt=0.01,viz=viz) #you ll probably want to lower dt
+    displaypath(robot,path,dt=0.1,viz=viz) #you ll probably want to lower dt
     
     
